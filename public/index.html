@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lunatics Kitchen MVP</title>
+  <style>
+    :root { --bg:#111; --surface:#1b1b1b; --text:#f5f5f5; --muted:#a7a7a7; --accent:#ff5a1f; }
+    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--text); font-family:Inter,system-ui,sans-serif; }
+    main { max-width:1100px; margin:0 auto; padding:16px; }
+    .panel { background:var(--surface); border:1px solid #2c2c2c; border-radius:14px; padding:14px; margin-bottom:14px; }
+    .grid { display:grid; gap:12px; } .menu-grid { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
+    .two-col { grid-template-columns:1fr 1fr; } @media (max-width:800px){ .two-col{grid-template-columns:1fr;} }
+    button,input,select{ border-radius:10px; padding:10px; border:1px solid #3a3a3a; }
+    button { border:0; color:white; background:var(--accent); font-weight:700; cursor:pointer; }
+    button.secondary { background:#303030; }
+    input,select{ background:#0f0f0f; color:var(--text); width:100%; }
+    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .muted{ color:var(--muted);} .badge{ border:1px solid #555; border-radius:999px; padding:4px 10px; font-size:12px; }
+    ul{ margin:8px 0; padding-left:18px;} .kpi{ font-size:1.6rem; font-weight:800; margin:0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Lunatics Kitchen — Completed MVP Demo</h1>
+    <p class="muted">No BS. Fast ordering, subscriptions, bulk catering, and kitchen operations.</p>
+
+    <section class="panel">
+      <h2>Home & Menu</h2>
+      <div class="row">
+        <button id="under100Btn" class="secondary">Under ₹100</button>
+        <button id="comboBtn" class="secondary">+1 Combos</button>
+        <span class="badge" id="waterBadge"></span>
+      </div>
+      <div id="menu" class="grid menu-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Direct Checkout</h2>
+      <p class="muted">Flow: Cart → Address → Payment</p>
+      <div class="row">
+        <button data-step="cart">Cart</button><button data-step="address" class="secondary">Address</button><button data-step="payment" class="secondary">Payment</button>
+      </div>
+      <ul id="cartList"></ul>
+      <div id="addressWrap" style="display:none"><input id="address" placeholder="Delivery address" /></div>
+      <div id="paymentWrap" class="panel" style="display:none">
+        <h3>Final Price (No Hidden Charges)</h3>
+        <p id="subtotal"></p><p id="tax"></p><p id="delivery"></p><p class="kpi" id="payable"></p>
+        <button id="payBtn">Pay with UPI (mock)</button>
+      </div>
+    </section>
+
+    <section class="panel grid two-col">
+      <div>
+        <h2>Subscription — Daily Habit</h2>
+        <label>Meal Type</label><select id="mealType"><option>Lunch</option><option>Dinner</option></select>
+        <label>Duration</label><select id="duration"><option value="7">7 Days</option><option value="15">15 Days</option><option value="30">30 Days</option></select>
+        <label>Next Meal DateTime</label><input type="datetime-local" id="nextMeal" />
+        <div class="row" style="margin-top:8px"><button id="skipBtn">Skip Meal</button><span class="muted">Requires 4+ hour notice.</span></div>
+      </div>
+      <div>
+        <h2>Bulk Catering</h2>
+        <label>Event Date</label><input type="date" id="eventDate" />
+        <label>Units (1-200)</label><input type="number" id="units" value="50" min="1" max="200" />
+        <label>Advance Payment % (50-100)</label><input type="number" id="advance" value="50" min="50" max="100" />
+        <button id="bulkBtn">Book Bulk Order</button>
+      </div>
+    </section>
+
+    <section class="panel grid two-col">
+      <div>
+        <h2>Kitchen Display System</h2>
+        <h3>Immediate Delivery</h3><div id="immediate"></div>
+        <h3>Future Bulk Orders</h3><div id="bulkOrders"></div>
+      </div>
+      <div>
+        <h2>SOP + Admin Dashboard</h2>
+        <p><strong>SOP:</strong> <span id="sop">Select an order to view SOP.</span></p>
+        <div class="panel"><p class="muted">Repeat Order Rate</p><p class="kpi">43.3%</p></div>
+        <div class="panel"><p class="muted">Segments</p><p>Students: 74</p><p>Corporate: 31</p><p>Hostel Owners: 15</p></div>
+      </div>
+    </section>
+  </main>
+
+<script>
+const menuItems = [
+ {id:'thali',name:'Student Thali',price:95,taxRate:0.05,under100:true,combo:false,stock:40,sop:'Serve rice, dal, sabzi, 2 rotis.'},
+ {id:'roll',name:'Paneer Roll',price:85,taxRate:0.05,under100:true,combo:false,stock:25,sop:'Grill paneer, wrap with salad + sauce.'},
+ {id:'combo1',name:'+1 Combo: Thali + Lassi',price:130,taxRate:0.05,under100:false,combo:true,stock:15,sop:'Pack thali and add sealed lassi cup.'},
+ {id:'combo2',name:'+1 Combo: Roll + Fries',price:120,taxRate:0.05,under100:false,combo:true,stock:20,sop:'Prepare roll, add fries with spice mix.'}
+];
+const FREE_WATER_ITEM={id:'water-500',name:'500ml Water Bottle',price:0,taxRate:0,isPromo:true};
+let showUnder100=false, showCombos=false, cart=[], step='cart', userOrderCount=0, isNewLogin=true, orders=[];
+
+const menuEl=document.getElementById('menu'), cartList=document.getElementById('cartList');
+const waterBadge=document.getElementById('waterBadge');
+const addressWrap=document.getElementById('addressWrap'), paymentWrap=document.getElementById('paymentWrap');
+
+function isFreeWaterEligible(){ return userOrderCount===0 || isNewLogin; }
+function applyFreeWater(items){ const has=items.some(i=>i.id===FREE_WATER_ITEM.id); if(isFreeWaterEligible()&&!has) return [...items,FREE_WATER_ITEM]; if(!isFreeWaterEligible()&&has) return items.filter(i=>i.id!==FREE_WATER_ITEM.id); return items; }
+function pricing(items){ const subtotal=items.reduce((s,i)=>s+i.price,0); const tax=items.reduce((s,i)=>s+i.price*(i.taxRate||0),0); const delivery=0; return {subtotal,tax,delivery,total:subtotal+tax+delivery}; }
+function validateBulk(d,u,a){ const selected=new Date(d); const days=(selected-new Date())/(1000*60*60*24); if(!d||Number.isNaN(selected.getTime())) return 'Please select a valid date.'; if(days<7) return 'Bulk orders must be placed at least 7 days in advance.'; if(u<1||u>200) return 'Bulk quantity must be between 1 and 200.'; if(a<50||a>100) return 'Advance payment must be between 50 and 100.'; return null; }
+function canSkip(iso){ return ((new Date(iso)-new Date())/(1000*60*60))>=4; }
+
+function render(){
+  waterBadge.textContent = `Free water: ${isFreeWaterEligible() ? 'Eligible' : 'Not eligible'}`;
+  const list=menuItems.filter(m=>!showUnder100||m.under100).filter(m=>!showCombos||m.combo);
+  menuEl.innerHTML=list.map(item=>`<article class='panel'><div class='row'><strong>${item.name}</strong>${item.under100?'<span class="badge">₹100</span>':''}</div><p>₹${item.price}</p><p class='muted'>Stock: ${item.stock}</p><button data-add='${item.id}'>Add</button></article>`).join('');
+
+  const finalCart=applyFreeWater(cart); const p=pricing(finalCart);
+  cartList.innerHTML=finalCart.map(i=>`<li>${i.name} — ₹${i.price}</li>`).join('') || '<li class="muted">Cart is empty.</li>';
+  addressWrap.style.display=step==='address'||step==='payment'?'block':'none';
+  paymentWrap.style.display=step==='payment'?'block':'none';
+  document.getElementById('subtotal').textContent=`Subtotal: ₹${p.subtotal.toFixed(2)}`;
+  document.getElementById('tax').textContent=`Tax: ₹${p.tax.toFixed(2)}`;
+  document.getElementById('delivery').textContent=`Delivery Fee: ₹${p.delivery.toFixed(2)}`;
+  document.getElementById('payable').textContent=`Payable: ₹${p.total.toFixed(2)}`;
+
+  document.getElementById('immediate').innerHTML=orders.filter(o=>o.type==='Immediate Delivery').map(o=>`<div class='panel'><strong>${o.id}</strong> — ₹${o.total.toFixed(2)} <button data-sop='${o.sop}'>View SOP</button></div>`).join('') || '<p class="muted">No immediate orders.</p>';
+  document.getElementById('bulkOrders').innerHTML=orders.filter(o=>o.type==='Future Bulk Orders').map(o=>`<div class='panel'><strong>${o.id}</strong> — ${o.createdAt} <button data-sop='${o.sop}'>View SOP</button></div>`).join('') || '<p class="muted">No future bulk orders.</p>';
+}
+
+document.getElementById('under100Btn').onclick=()=>{showUnder100=!showUnder100;document.getElementById('under100Btn').className=showUnder100?'':'secondary';render();};
+document.getElementById('comboBtn').onclick=()=>{showCombos=!showCombos;document.getElementById('comboBtn').className=showCombos?'':'secondary';render();};
+document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{step=b.dataset.step;document.querySelectorAll('[data-step]').forEach(x=>x.className=x===b?'':'secondary');render();});
+document.getElementById('menu').addEventListener('click',(e)=>{const id=e.target.getAttribute('data-add');if(!id) return; const item=menuItems.find(m=>m.id===id); cart.push(item); render();});
+document.getElementById('payBtn').onclick=()=>{const address=document.getElementById('address').value.trim(); if(!address){alert('Enter address first.');return;} const finalCart=applyFreeWater(cart); const p=pricing(finalCart); orders.unshift({id:`ORD-${orders.length+1}`,type:'Immediate Delivery',total:p.total,sop:finalCart[0]?.sop||'Assemble and pack standard order.'}); cart=[]; isNewLogin=false; userOrderCount++; step='cart'; alert('Order placed successfully.'); render();};
+document.getElementById('bulkBtn').onclick=()=>{const d=document.getElementById('eventDate').value; const u=Number(document.getElementById('units').value); const a=Number(document.getElementById('advance').value); const err=validateBulk(d,u,a); if(err){alert(err);return;} orders.unshift({id:`BULK-${orders.length+1}`,type:'Future Bulk Orders',createdAt:d,sop:'Pack ready-to-serve catering trays.'}); alert('Bulk order booked.'); render();};
+document.getElementById('skipBtn').onclick=()=>{const t=document.getElementById('nextMeal').value; if(!t){alert('Set a next meal date-time first.');return;} if(!canSkip(t)){alert('Skip denied: requires at least 4-hour notice.');return;} alert('Skip accepted. Wallet credit added.');};
+document.body.addEventListener('click',(e)=>{const sop=e.target.getAttribute('data-sop'); if(sop) document.getElementById('sop').textContent=sop;});
+
+render();
+</script>
+</body>
+</html>
